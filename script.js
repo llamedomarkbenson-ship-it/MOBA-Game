@@ -4,7 +4,7 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// ===== LOAD HERO & MINION IMAGES =====
+// ===== LOAD IMAGES =====
 const playerImg = new Image();
 playerImg.src = "https://i.imgur.com/1bX5QH6.png";
 
@@ -18,7 +18,7 @@ const redMinionImg = new Image();
 redMinionImg.src = "https://i.imgur.com/dXh9f0k.png";
 
 // ===== PLAYER & ENEMY =====
-const player = { x: 100, y: canvas.height/2, size: 40, hp: 100, maxHp: 100, gold: 0, alive: true };
+const player = { x: 100, y: canvas.height/2, size: 40, hp: 100, maxHp: 100, gold: 0, alive: true, speed: 4, target: null };
 const enemy  = { x: canvas.width-100, y: canvas.height/2, size: 40, hp: 100, maxHp: 100, alive: true };
 
 // ===== TOWERS =====
@@ -34,44 +34,58 @@ setInterval(() => {
   minions.push({ x: canvas.width-120, y: canvas.height/2, hp: 30, team: "red" });
 }, 2500);
 
-// ===== JOYSTICK =====
-let joystick = { active:false, x:0, y:0, dx:0, dy:0 };
-canvas.addEventListener("touchstart", e => {
-  const t = e.touches[0];
-  joystick.active = true;
-  joystick.x = t.clientX;
-  joystick.y = t.clientY;
-});
-canvas.addEventListener("touchmove", e => {
-  if (!joystick.active) return;
-  const t = e.touches[0];
-  joystick.dx = t.clientX - joystick.x;
-  joystick.dy = t.clientY - joystick.y;
-});
-canvas.addEventListener("touchend", () => {
-  joystick.active = false;
-  joystick.dx = joystick.dy = 0;
+// ===== MOUSE MOVEMENT =====
+canvas.addEventListener("mousedown", e => {
+  player.target = { x: e.clientX, y: e.clientY };
 });
 
-// ===== KEYBOARD =====
-const keys = {};
-document.addEventListener("keydown", e => keys[e.key.toLowerCase()] = true);
-document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
+// ===== SKILL SYSTEM =====
+const skills = {
+  Q: { dmg: 10, range: 100, cooldown: 2000, lastCast: 0, color: "cyan" },
+  W: { dmg: 15, range: 120, cooldown: 3000, lastCast: 0, color: "yellow" },
+  E: { dmg: 5, passive: true, color: "purple" },
+  R: { dmg: 30, range: 200, cooldown: 8000, lastCast: 0, color: "red" }
+};
 
-// ===== ATTACK BUTTON =====
-const attackBtn = document.getElementById("attackBtn");
-attackBtn.addEventListener("touchstart", attack);
-attackBtn.addEventListener("mousedown", attack);
+let skillEffects = [];
 
-// ===== MOVEMENT =====
+// ===== CAST SKILL =====
+function castSkill(key){
+  const skill = skills[key];
+  const dist = Math.hypot(player.x-enemy.x, player.y-enemy.y);
+  if(dist <= skill.range && enemy.alive){
+    enemy.hp -= skill.dmg;
+    skillEffects.push({ x: enemy.x, y: enemy.y, color: skill.color, radius: 10, maxRadius: 50 });
+  }
+}
+
+// ===== HANDLE KEYS =====
+document.addEventListener("keydown", e => {
+  const now = Date.now();
+  const key = e.key.toUpperCase();
+  if(skills[key]){
+    if(skills[key].passive) return; 
+    if(now - skills[key].lastCast >= skills[key].cooldown){
+      castSkill(key);
+      skills[key].lastCast = now;
+    }
+  }
+});
+
+// ===== PLAYER MOVEMENT =====
 function movePlayer() {
-  if (!player.alive) return;
-  if (keys["w"]) player.y -= 4;
-  if (keys["s"]) player.y += 4;
-  if (keys["a"]) player.x -= 4;
-  if (keys["d"]) player.x += 4;
-  player.x += joystick.dx * 0.05;
-  player.y += joystick.dy * 0.05;
+  if (!player.alive || !player.target) return;
+  const dx = player.target.x - player.x;
+  const dy = player.target.y - player.y;
+  const dist = Math.hypot(dx, dy);
+  if (dist < player.speed) {
+    player.x = player.target.x;
+    player.y = player.target.y;
+    player.target = null;
+  } else {
+    player.x += (dx / dist) * player.speed;
+    player.y += (dy / dist) * player.speed;
+  }
 }
 
 // ===== ENEMY AI =====
@@ -84,16 +98,7 @@ function moveEnemy() {
   } else { player.hp -= 0.3; }
 }
 
-// ===== ATTACK =====
-function attack(){
-  if(!player.alive) return;
-  if(enemy.alive && Math.hypot(player.x-enemy.x, player.y-enemy.y)<60) enemy.hp -= 2;
-  minions.forEach(m=>{
-    if(m.team==="red" && Math.hypot(player.x-m.x, player.y-m.y)<50) m.hp -= 3;
-  });
-}
-
-// ===== MINIONS LOGIC =====
+// ===== MINIONS =====
 function updateMinions(){
   minions.forEach(m=>{
     m.x += m.team==="blue"?1:-1;
@@ -136,37 +141,62 @@ function draw(){
   if(player.alive) ctx.drawImage(playerImg, player.x-20, player.y-20, 40, 40);
   if(enemy.alive) ctx.drawImage(enemyImg, enemy.x-20, enemy.y-20, 40, 40);
 
-  // Minions
+  // Draw minions
   minions.forEach(m=>{
     ctx.drawImage(m.team==="blue"?blueMinionImg:redMinionImg, m.x-5, m.y-5, 10, 10);
   });
 
-  // Towers
+  // Draw towers
   towers.forEach(t=>{
     ctx.fillStyle = t.team==="blue"?"blue":"red";
     ctx.fillRect(t.x-10,t.y-30,20,60);
   });
 
-  // HP bars
+  // Draw HP bars
   ctx.fillStyle="green";
   ctx.fillRect(player.x-20,player.y-30,player.hp*0.4,5);
   ctx.fillRect(enemy.x-20,enemy.y-30,enemy.hp*0.4,5);
 
-  // Joystick visual
-  if(joystick.active){
-    ctx.beginPath(); ctx.arc(joystick.x,joystick.y,30,0,Math.PI*2); ctx.strokeStyle="white"; ctx.stroke();
-    ctx.beginPath(); ctx.arc(joystick.x+joystick.dx,joystick.y+joystick.dy,15,0,Math.PI*2); ctx.fillStyle="white"; ctx.fill();
-  }
+  // Draw skill effects (expanding circles)
+  skillEffects.forEach((s,i)=>{
+    ctx.beginPath();
+    ctx.arc(s.x,s.y,s.radius,0,Math.PI*2);
+    ctx.fillStyle = s.color;
+    ctx.globalAlpha = 0.5;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+    s.radius += 2;
+    if(s.radius >= s.maxRadius) skillEffects.splice(i,1);
+  });
 
+  // Draw player gold
   ctx.fillStyle="white";
   ctx.fillText("Gold: "+player.gold,20,20);
+
   if(!player.alive) ctx.fillText("You Died! Respawning...",canvas.width/2-80,canvas.height/2);
+
+  // Draw skill cooldowns on HUD
+  const hudX = 20; const hudY = canvas.height - 90;
+  ["Q","W","E","R"].forEach((key,i)=>{
+    const skill = skills[key];
+    ctx.fillStyle = skill.color;
+    ctx.fillRect(hudX + i*80, hudY, 60, 60);
+    ctx.fillStyle = "white";
+    ctx.fillText(key, hudX + i*80 + 22, hudY + 35);
+
+    // Cooldown overlay
+    const now = Date.now();
+    if(skill.cooldown && now - skill.lastCast < skill.cooldown){
+      const ratio = (now - skill.lastCast) / skill.cooldown;
+      ctx.fillStyle = "rgba(0,0,0,0.5)";
+      ctx.fillRect(hudX + i*80, hudY, 60, 60*(1-ratio));
+    }
+  });
 }
 
 // ===== GAME LOOP =====
 function gameLoop(){
   movePlayer(); moveEnemy(); updateMinions(); towerLogic(); checkDeath();
-  if(keys[" "]) attack();
   draw();
   requestAnimationFrame(gameLoop);
 }
