@@ -14,7 +14,7 @@ enemyImg.src = "https://i.imgur.com/3fJ1P3b.png";
 // ===== PLAYER =====
 const player = {
   x: 100,
-  y: canvas.height/2,
+  y: canvas.height / 2,
   hp: 100,
   maxHp: 100,
   speed: 3,
@@ -25,11 +25,14 @@ const player = {
   buffed: false
 };
 
+// ===== ENEMY =====
 const enemy = {
   x: canvas.width - 100,
-  y: canvas.height/2,
+  y: canvas.height / 2,
   hp: 100,
-  alive: true
+  maxHp: 100,
+  alive: true,
+  stunned: false, // Added stun flag
 };
 
 // ===== ARRAYS =====
@@ -76,13 +79,24 @@ function autoAttack() {
   const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
 
   if (dist < 120) {
-    enemy.hp -= 0.2;
+    enemy.hp -= 0.2; // Reduce enemy HP every frame when close
+  }
+
+  // Check if enemy dies
+  if (enemy.hp <= 0) {
+    enemy.alive = false; // Set enemy alive to false
+    enemy.hp = 0; // Cap the HP to 0 when the enemy dies
   }
 }
 
 // ===== ENEMY AI =====
 function moveEnemy() {
-  if (!enemy.alive) return;
+  if (!enemy.alive) return; // If enemy is dead, don't process any movement
+
+  if (enemy.stunned) {
+    // Prevent enemy from moving if stunned
+    return;
+  }
 
   const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
 
@@ -95,7 +109,7 @@ function moveEnemy() {
 }
 
 // ===== SKILLS =====
-let cooldowns = { Q:0, W:0, E:0, R:0 };
+let cooldowns = { Q: 0, W: 0, E: 0, R: 0 };
 
 document.addEventListener("keydown", e => {
   const key = e.key.toUpperCase();
@@ -123,7 +137,7 @@ document.addEventListener("keydown", e => {
 });
 
 // ===== Q: ARROW =====
-function castQ(){
+function castQ() {
   if (!player.targetEnemy) return;
 
   const dmg = player.buffed ? 20 : 10;
@@ -138,7 +152,7 @@ function castQ(){
 }
 
 // ===== W: SPEED BUFF =====
-function castW(){
+function castW() {
   player.speed = player.buffed ? 7 : 5;
 
   effects.push({
@@ -154,7 +168,7 @@ function castW(){
 }
 
 // ===== E: HEAL =====
-function castE(){
+function castE() {
   const heal = player.buffed ? 40 : 20;
 
   player.hp = Math.min(player.maxHp, player.hp + heal);
@@ -167,9 +181,9 @@ function castE(){
   });
 }
 
-// ===== R: ULTIMATE =====
-function castR(){
-  player.buffed = true;
+// ===== R: ULTIMATE (STUN) =====
+function castR() {
+  enemy.stunned = true; // Activate stun for enemy
 
   effects.push({
     x: player.x,
@@ -178,83 +192,94 @@ function castR(){
     timer: 120
   });
 
+  // Duration of the stun effect (e.g., 3 seconds)
   setTimeout(() => {
-    player.buffed = false;
-  }, 5000);
+    enemy.stunned = false; // Remove stun after 3 seconds
+  }, 3000); // 3000 ms = 3 seconds
 }
 
 // ===== PROJECTILES =====
-function updateProjectiles(){
-  projectiles.forEach((p,i)=>{
+function updateProjectiles() {
+  projectiles.forEach((p, i) => {
     const dx = p.target.x - p.x;
     const dy = p.target.y - p.y;
     const dist = Math.hypot(dx, dy);
 
-    p.x += (dx/dist) * p.speed;
-    p.y += (dy/dist) * p.speed;
+    p.x += (dx / dist) * p.speed;
+    p.y += (dy / dist) * p.speed;
 
-    if(dist < 10){
+    if (dist < 10) {
       enemy.hp -= p.dmg;
-      projectiles.splice(i,1);
+      projectiles.splice(i, 1);
     }
   });
 }
 
 // ===== DRAW =====
-function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   // Player
-  ctx.drawImage(playerImg, player.x-20, player.y-20, 40, 40);
+  if (player.alive) {
+    ctx.drawImage(playerImg, player.x - 20, player.y - 20, 40, 40);
+  } else {
+    // Draw death effect or animation (Optional)
+    ctx.fillStyle = "gray";
+    ctx.fillText("Player Dead", player.x - 20, player.y - 40);
+  }
 
   // Enemy
-  if(enemy.alive){
-    ctx.drawImage(enemyImg, enemy.x-20, enemy.y-20, 40, 40);
+  if (enemy.alive) {
+    ctx.drawImage(enemyImg, enemy.x - 20, enemy.y - 20, 40, 40);
+  } else {
+    // Draw death effect or animation (Optional)
+    ctx.fillStyle = "red";
+    ctx.fillText("Enemy Dead", enemy.x - 20, enemy.y - 40);
   }
 
   // Target circle
-  if(player.targetEnemy){
+  if (player.targetEnemy) {
     ctx.beginPath();
-    ctx.arc(enemy.x, enemy.y, 30, 0, Math.PI*2);
+    ctx.arc(enemy.x, enemy.y, 30, 0, Math.PI * 2);
     ctx.strokeStyle = "red";
     ctx.stroke();
   }
 
   // Projectiles
-  projectiles.forEach(p=>{
-    ctx.fillStyle="cyan";
+  projectiles.forEach(p => {
+    ctx.fillStyle = "cyan";
     ctx.fillRect(p.x, p.y, 6, 6);
   });
 
   // Effects
-  effects.forEach((e,i)=>{
+  effects.forEach((e, i) => {
     ctx.beginPath();
-    ctx.arc(e.x, e.y, 30, 0, Math.PI*2);
+    ctx.arc(e.x, e.y, 30, 0, Math.PI * 2);
 
-    if(e.type==="heal") ctx.fillStyle="green";
-    if(e.type==="speed") ctx.fillStyle="yellow";
-    if(e.type==="ultimate") ctx.fillStyle="purple";
+    if (e.type === "heal") ctx.fillStyle = "green";
+    if (e.type === "speed") ctx.fillStyle = "yellow";
+    if (e.type === "ultimate") ctx.fillStyle = "purple";
 
     ctx.globalAlpha = 0.3;
     ctx.fill();
     ctx.globalAlpha = 1;
 
     e.timer--;
-    if(e.timer<=0) effects.splice(i,1);
+    if (e.timer <= 0) effects.splice(i, 1);
   });
 
   // HP bars
-  ctx.fillStyle="green";
-  ctx.fillRect(player.x-20, player.y-30, player.hp*0.4,5);
-  ctx.fillRect(enemy.x-20, enemy.y-30, enemy.hp*0.4,5);
+  ctx.fillStyle = "green";
+  ctx.fillRect(player.x - 20, player.y - 30, player.hp * 0.4, 5);
+  ctx.fillRect(enemy.x - 20, enemy.y - 30, enemy.hp * 0.4, 5);
 
   // UI
-  ctx.fillStyle="white";
+  ctx.fillStyle = "white";
   ctx.fillText("Q: Arrow | W: Speed | E: Heal | R: Ultimate", 20, 20);
 }
 
 // ===== GAME LOOP =====
-function gameLoop(){
+function gameLoop() {
   movePlayer();
   moveEnemy();
   autoAttack();
