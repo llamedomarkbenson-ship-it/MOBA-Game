@@ -4,10 +4,22 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// ===== PLAYER =====
-const player = { x: 100, y: canvas.height/2, size: 20, color: "cyan", hp: 100, maxHp: 100, gold: 0, alive: true };
-// ===== ENEMY =====
-const enemy = { x: canvas.width-100, y: canvas.height/2, size: 20, color: "red", hp: 100, maxHp: 100, alive: true };
+// ===== LOAD HERO & MINION IMAGES =====
+const playerImg = new Image();
+playerImg.src = "https://i.imgur.com/1bX5QH6.png";
+
+const enemyImg = new Image();
+enemyImg.src = "https://i.imgur.com/3fJ1P3b.png";
+
+const blueMinionImg = new Image();
+blueMinionImg.src = "https://i.imgur.com/6XWwY4t.png";
+
+const redMinionImg = new Image();
+redMinionImg.src = "https://i.imgur.com/dXh9f0k.png";
+
+// ===== PLAYER & ENEMY =====
+const player = { x: 100, y: canvas.height/2, size: 40, hp: 100, maxHp: 100, gold: 0, alive: true };
+const enemy  = { x: canvas.width-100, y: canvas.height/2, size: 40, hp: 100, maxHp: 100, alive: true };
 
 // ===== TOWERS =====
 const towers = [
@@ -49,17 +61,15 @@ document.addEventListener("keyup", e => keys[e.key.toLowerCase()] = false);
 // ===== ATTACK BUTTON =====
 const attackBtn = document.getElementById("attackBtn");
 attackBtn.addEventListener("touchstart", attack);
-attackBtn.addEventListener("mousedown", attack); // works on PC too
+attackBtn.addEventListener("mousedown", attack);
 
 // ===== MOVEMENT =====
 function movePlayer() {
   if (!player.alive) return;
-
   if (keys["w"]) player.y -= 4;
   if (keys["s"]) player.y += 4;
   if (keys["a"]) player.x -= 4;
   if (keys["d"]) player.x += 4;
-
   player.x += joystick.dx * 0.05;
   player.y += joystick.dy * 0.05;
 }
@@ -67,59 +77,46 @@ function movePlayer() {
 // ===== ENEMY AI =====
 function moveEnemy() {
   if (!enemy.alive) return;
-  const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-  if (dist > 60) {
-    enemy.x += (player.x - enemy.x) * 0.01;
-    enemy.y += (player.y - enemy.y) * 0.01;
-  } else {
-    player.hp -= 0.3; // enemy attacks player
-  }
+  const dist = Math.hypot(player.x-enemy.x, player.y-enemy.y);
+  if(dist>60){
+    enemy.x += (player.x-enemy.x)*0.01;
+    enemy.y += (player.y-enemy.y)*0.01;
+  } else { player.hp -= 0.3; }
 }
 
-// ===== ATTACK FUNCTION =====
-function attack() {
-  if (!player.alive) return;
-
-  // Hit enemy hero
-  if (enemy.alive && Math.hypot(player.x-enemy.x, player.y-enemy.y) < 60) enemy.hp -= 2;
-
-  // Hit enemy minions
-  minions.forEach(m => {
-    if (m.team === "red" && Math.hypot(player.x-m.x, player.y-m.y) < 50) m.hp -= 3;
+// ===== ATTACK =====
+function attack(){
+  if(!player.alive) return;
+  if(enemy.alive && Math.hypot(player.x-enemy.x, player.y-enemy.y)<60) enemy.hp -= 2;
+  minions.forEach(m=>{
+    if(m.team==="red" && Math.hypot(player.x-m.x, player.y-m.y)<50) m.hp -= 3;
   });
 }
 
 // ===== MINIONS LOGIC =====
-function updateMinions() {
-  minions.forEach(m => {
-    m.x += m.team === "blue" ? 1 : -1;
-
-    // Attack opposing minions
-    minions.forEach(o => {
-      if (m !== o && m.team !== o.team && Math.abs(m.x-o.x)<15) o.hp -= 0.5;
+function updateMinions(){
+  minions.forEach(m=>{
+    m.x += m.team==="blue"?1:-1;
+    minions.forEach(o=>{
+      if(m!==o && m.team!==o.team && Math.abs(m.x-o.x)<15) o.hp-=0.5;
     });
-
-    // Attack heroes
-    if (m.team === "blue" && enemy.alive && Math.abs(m.x-enemy.x)<20) enemy.hp -= 0.2;
-    if (m.team === "red" && player.alive && Math.abs(m.x-player.x)<20) player.hp -= 0.2;
+    if(m.team==="blue" && enemy.alive && Math.abs(m.x-enemy.x)<20) enemy.hp-=0.2;
+    if(m.team==="red" && player.alive && Math.abs(m.x-player.x)<20) player.hp-=0.2;
   });
-
-  minions = minions.filter(m => m.hp>0);
+  minions = minions.filter(m=>m.hp>0);
 }
 
 // ===== TOWER LOGIC =====
-function towerLogic() {
-  towers.forEach(t => {
-    // Attack minions
-    minions.forEach(m => { if(m.team!==t.team && Math.abs(t.x-m.x)<120) m.hp -= 0.8; });
-    // Attack heroes
-    if (t.team==="blue" && enemy.alive && Math.abs(t.x-enemy.x)<120) enemy.hp -= 0.5;
-    if (t.team==="red" && player.alive && Math.abs(t.x-player.x)<120) player.hp -= 0.5;
+function towerLogic(){
+  towers.forEach(t=>{
+    minions.forEach(m=>{ if(m.team!==t.team && Math.abs(t.x-m.x)<120) m.hp-=0.8; });
+    if(t.team==="blue" && enemy.alive && Math.abs(t.x-enemy.x)<120) enemy.hp-=0.5;
+    if(t.team==="red" && player.alive && Math.abs(t.x-player.x)<120) player.hp-=0.5;
   });
 }
 
 // ===== DEATH & RESPAWN =====
-function checkDeath() {
+function checkDeath(){
   if(player.hp<=0 && player.alive){
     player.alive=false;
     setTimeout(()=>{player.hp=player.maxHp; player.x=100; player.y=canvas.height/2; player.alive=true;},3000);
@@ -135,16 +132,27 @@ function checkDeath() {
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  if(player.alive){ctx.fillStyle=player.color; ctx.fillRect(player.x,player.y,20,20);}
-  if(enemy.alive){ctx.fillStyle=enemy.color; ctx.fillRect(enemy.x,enemy.y,20,20);}
+  // Draw heroes
+  if(player.alive) ctx.drawImage(playerImg, player.x-20, player.y-20, 40, 40);
+  if(enemy.alive) ctx.drawImage(enemyImg, enemy.x-20, enemy.y-20, 40, 40);
 
-  minions.forEach(m=>{ctx.fillStyle=m.team==="blue"?"lightblue":"pink"; ctx.fillRect(m.x,m.y,10,10);});
-  towers.forEach(t=>{ctx.fillStyle=t.team==="blue"?"blue":"red"; ctx.fillRect(t.x-10,t.y-30,20,60);});
+  // Minions
+  minions.forEach(m=>{
+    ctx.drawImage(m.team==="blue"?blueMinionImg:redMinionImg, m.x-5, m.y-5, 10, 10);
+  });
 
+  // Towers
+  towers.forEach(t=>{
+    ctx.fillStyle = t.team==="blue"?"blue":"red";
+    ctx.fillRect(t.x-10,t.y-30,20,60);
+  });
+
+  // HP bars
   ctx.fillStyle="green";
-  ctx.fillRect(player.x,player.y-10,player.hp,5);
-  ctx.fillRect(enemy.x,enemy.y-10,enemy.hp,5);
+  ctx.fillRect(player.x-20,player.y-30,player.hp*0.4,5);
+  ctx.fillRect(enemy.x-20,enemy.y-30,enemy.hp*0.4,5);
 
+  // Joystick visual
   if(joystick.active){
     ctx.beginPath(); ctx.arc(joystick.x,joystick.y,30,0,Math.PI*2); ctx.strokeStyle="white"; ctx.stroke();
     ctx.beginPath(); ctx.arc(joystick.x+joystick.dx,joystick.y+joystick.dy,15,0,Math.PI*2); ctx.fillStyle="white"; ctx.fill();
