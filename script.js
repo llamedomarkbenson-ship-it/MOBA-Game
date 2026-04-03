@@ -33,6 +33,8 @@ const enemy = {
   maxHp: 100,
   alive: true,
   stunned: false, // Added stun flag
+  respawnTime: 5000, // Time for respawn in milliseconds
+  respawnTimer: 0 // Tracks when to respawn the enemy
 };
 
 // ===== ARRAYS =====
@@ -86,12 +88,21 @@ function autoAttack() {
   if (enemy.hp <= 0) {
     enemy.alive = false; // Set enemy alive to false
     enemy.hp = 0; // Cap the HP to 0 when the enemy dies
+
+    // Start respawn timer
+    enemy.respawnTimer = Date.now() + enemy.respawnTime;
   }
 }
 
 // ===== ENEMY AI =====
 function moveEnemy() {
-  if (!enemy.alive) return; // If enemy is dead, don't process any movement
+  if (!enemy.alive) {
+    // If the enemy is dead, check if it's time to respawn
+    if (Date.now() > enemy.respawnTimer) {
+      respawnEnemy(); // Respawn enemy when timer is up
+    }
+    return; // Don't allow the enemy to move if they are dead
+  }
 
   if (enemy.stunned) {
     // Prevent enemy from moving if stunned
@@ -213,6 +224,14 @@ function updateProjectiles() {
       projectiles.splice(i, 1);
     }
   });
+}
+
+// ===== RESPawn ENEMY =====
+function respawnEnemy() {
+  enemy.alive = true; // Set enemy alive to true
+  enemy.hp = enemy.maxHp; // Set enemy HP to full
+  enemy.x = canvas.width - 100; // Reset enemy position
+  enemy.y = canvas.height / 2; // Reset enemy position
 }
 
 // ===== DRAW =====
