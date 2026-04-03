@@ -28,14 +28,3 @@ canvas {
 #skillW { left: 100px; background: yellow; }
 #skillE { left: 180px; background: purple; }
 #skillR { left: 260px; background: red; }
-
-/* Cooldown overlay */
-.cooldown {
-  position: absolute;
-  width: 60px;
-  height: 60px;
-  border-radius: 10px;
-  background: rgba(0,0,0,0.5);
-  top: 0;
-  left: 0;
-}
