@@ -4,33 +4,56 @@ const ctx = canvas.getContext("2d");
 canvas.width = window.innerWidth;
 canvas.height = window.innerHeight;
 
-// ===== LOAD IMAGES =====
+// ===== IMAGES =====
 const playerImg = new Image();
 playerImg.src = "https://i.imgur.com/1bX5QH6.png";
 
 const enemyImg = new Image();
 enemyImg.src = "https://i.imgur.com/3fJ1P3b.png";
 
-// ===== PLAYER & ENEMY =====
-const player = { x: 100, y: canvas.height / 2, size: 40, hp: 100, maxHp: 100, alive: true, speed: 4, target: null };
-const enemy = { x: canvas.width - 100, y: canvas.height / 2, size: 40, hp: 100, maxHp: 100, alive: true };
+// ===== PLAYER =====
+const player = {
+  x: 100,
+  y: canvas.height/2,
+  hp: 100,
+  maxHp: 100,
+  speed: 3,
+  baseSpeed: 3,
+  alive: true,
+  target: null,
+  targetEnemy: null,
+  buffed: false
+};
 
-// ===== MOUSE EVENTS =====
-// Right-click to move the hero
+const enemy = {
+  x: canvas.width - 100,
+  y: canvas.height/2,
+  hp: 100,
+  alive: true
+};
+
+// ===== ARRAYS =====
+let projectiles = [];
+let effects = [];
+
+// ===== CLICK SYSTEM =====
 canvas.addEventListener("mousedown", e => {
-  if (e.button === 2) { // Right-click for movement
-    player.target = { x: e.clientX, y: e.clientY };
-  }
-  // Left-click to cast skill or select hero
-  if (e.button === 0) {
-    // If near the enemy, cast a skill or attack
-    if (Math.hypot(player.x - enemy.x, player.y - enemy.y) < 60) {
-      attackEnemy();
-    }
+  const mx = e.clientX;
+  const my = e.clientY;
+
+  const distToEnemy = Math.hypot(mx - enemy.x, my - enemy.y);
+
+  if (distToEnemy < 40) {
+    // TARGET ENEMY
+    player.targetEnemy = enemy;
+  } else {
+    // MOVE
+    player.target = { x: mx, y: my };
+    player.targetEnemy = null;
   }
 });
 
-// ===== MOVE PLAYER TOWARD TARGET =====
+// ===== MOVE PLAYER =====
 function movePlayer() {
   if (!player.target) return;
 
@@ -39,8 +62,6 @@ function movePlayer() {
   const dist = Math.hypot(dx, dy);
 
   if (dist < player.speed) {
-    player.x = player.target.x;
-    player.y = player.target.y;
     player.target = null;
   } else {
     player.x += (dx / dist) * player.speed;
@@ -48,113 +69,196 @@ function movePlayer() {
   }
 }
 
+// ===== AUTO ATTACK =====
+function autoAttack() {
+  if (!player.targetEnemy || !enemy.alive) return;
+
+  const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+
+  if (dist < 120) {
+    enemy.hp -= 0.2;
+  }
+}
+
 // ===== ENEMY AI =====
 function moveEnemy() {
   if (!enemy.alive) return;
+
   const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-  if (dist > 60) {
+
+  if (dist > 50) {
     enemy.x += (player.x - enemy.x) * 0.01;
     enemy.y += (player.y - enemy.y) * 0.01;
   } else {
-    player.hp -= 0.3;
+    player.hp -= 0.2;
   }
 }
 
-// ===== ATTACK FUNCTION =====
-function attackEnemy() {
-  if (enemy.alive && Math.hypot(player.x - enemy.x, player.y - enemy.y) < 60) {
-    enemy.hp -= 5;  // Deal damage to enemy
-  }
-}
+// ===== SKILLS =====
+let cooldowns = { Q:0, W:0, E:0, R:0 };
 
-// ===== SKILL SYSTEM (QWER) =====
-const skills = {
-  Q: { dmg: 10, range: 100, cooldown: 2000, lastCast: 0, color: "cyan" },
-  W: { dmg: 15, range: 120, cooldown: 3000, lastCast: 0, color: "yellow" },
-  E: { dmg: 5, passive: true, color: "purple" },
-  R: { dmg: 30, range: 200, cooldown: 8000, lastCast: 0, color: "red" }
-};
-
-let skillEffects = [];
-
-// ===== CAST SKILL =====
-function castSkill(key) {
-  const skill = skills[key];
-  const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-  if (dist <= skill.range && enemy.alive) {
-    enemy.hp -= skill.dmg;
-    skillEffects.push({ x: enemy.x, y: enemy.y, color: skill.color, radius: 10, maxRadius: 50 });
-  }
-}
-
-// ===== HANDLE KEYS (QWER Skills) =====
 document.addEventListener("keydown", e => {
-  const now = Date.now();
   const key = e.key.toUpperCase();
-  if (skills[key]) {
-    if (skills[key].passive) return;
-    if (now - skills[key].lastCast >= skills[key].cooldown) {
-      castSkill(key);
-      skills[key].lastCast = now;
-    }
+  const now = Date.now();
+
+  if (key === "Q" && now > cooldowns.Q) {
+    castQ();
+    cooldowns.Q = now + 2000;
+  }
+
+  if (key === "W" && now > cooldowns.W) {
+    castW();
+    cooldowns.W = now + 5000;
+  }
+
+  if (key === "E" && now > cooldowns.E) {
+    castE();
+    cooldowns.E = now + 4000;
+  }
+
+  if (key === "R" && now > cooldowns.R) {
+    castR();
+    cooldowns.R = now + 10000;
   }
 });
 
-// ===== MINIONS & GAME LOGIC =====
-function updateMinions() {
-  // Handle minion logic here if required (you can add minions in the future)
+// ===== Q: ARROW =====
+function castQ(){
+  if (!player.targetEnemy) return;
+
+  const dmg = player.buffed ? 20 : 10;
+
+  projectiles.push({
+    x: player.x,
+    y: player.y,
+    target: player.targetEnemy,
+    speed: 6,
+    dmg: dmg
+  });
 }
 
-// ===== DRAW GAME STATE =====
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+// ===== W: SPEED BUFF =====
+function castW(){
+  player.speed = player.buffed ? 7 : 5;
 
-  // Draw player and enemy
-  if (player.alive) ctx.drawImage(playerImg, player.x - 20, player.y - 20, 40, 40);
-  if (enemy.alive) ctx.drawImage(enemyImg, enemy.x - 20, enemy.y - 20, 40, 40);
-
-  // Draw skill effects (expanding circles)
-  skillEffects.forEach((s, i) => {
-    ctx.beginPath();
-    ctx.arc(s.x, s.y, s.radius, 0, Math.PI * 2);
-    ctx.fillStyle = s.color;
-    ctx.globalAlpha = 0.5;
-    ctx.fill();
-    ctx.globalAlpha = 1;
-    s.radius += 2;
-    if (s.radius >= s.maxRadius) skillEffects.splice(i, 1);
+  effects.push({
+    x: player.x,
+    y: player.y,
+    type: "speed",
+    timer: 60
   });
 
-  // Draw HP bars
-  ctx.fillStyle = "green";
-  ctx.fillRect(player.x - 20, player.y - 30, player.hp * 0.4, 5);
-  ctx.fillRect(enemy.x - 20, enemy.y - 30, enemy.hp * 0.4, 5);
+  setTimeout(() => {
+    player.speed = player.baseSpeed;
+  }, 2000);
+}
 
-  // Draw skill cooldowns on HUD
-  const hudX = 20;
-  const hudY = canvas.height - 90;
-  ["Q", "W", "E", "R"].forEach((key, i) => {
-    const skill = skills[key];
-    ctx.fillStyle = skill.color;
-    ctx.fillRect(hudX + i * 80, hudY, 60, 60);
-    ctx.fillStyle = "white";
-    ctx.fillText(key, hudX + i * 80 + 22, hudY + 35);
+// ===== E: HEAL =====
+function castE(){
+  const heal = player.buffed ? 40 : 20;
 
-    // Cooldown overlay
-    const now = Date.now();
-    if (skill.cooldown && now - skill.lastCast < skill.cooldown) {
-      const ratio = (now - skill.lastCast) / skill.cooldown;
-      ctx.fillStyle = "rgba(0,0,0,0.5)";
-      ctx.fillRect(hudX + i * 80, hudY, 60, 60 * (1 - ratio));
+  player.hp = Math.min(player.maxHp, player.hp + heal);
+
+  effects.push({
+    x: player.x,
+    y: player.y,
+    type: "heal",
+    timer: 60
+  });
+}
+
+// ===== R: ULTIMATE =====
+function castR(){
+  player.buffed = true;
+
+  effects.push({
+    x: player.x,
+    y: player.y,
+    type: "ultimate",
+    timer: 120
+  });
+
+  setTimeout(() => {
+    player.buffed = false;
+  }, 5000);
+}
+
+// ===== PROJECTILES =====
+function updateProjectiles(){
+  projectiles.forEach((p,i)=>{
+    const dx = p.target.x - p.x;
+    const dy = p.target.y - p.y;
+    const dist = Math.hypot(dx, dy);
+
+    p.x += (dx/dist) * p.speed;
+    p.y += (dy/dist) * p.speed;
+
+    if(dist < 10){
+      enemy.hp -= p.dmg;
+      projectiles.splice(i,1);
     }
   });
 }
 
+// ===== DRAW =====
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  // Player
+  ctx.drawImage(playerImg, player.x-20, player.y-20, 40, 40);
+
+  // Enemy
+  if(enemy.alive){
+    ctx.drawImage(enemyImg, enemy.x-20, enemy.y-20, 40, 40);
+  }
+
+  // Target circle
+  if(player.targetEnemy){
+    ctx.beginPath();
+    ctx.arc(enemy.x, enemy.y, 30, 0, Math.PI*2);
+    ctx.strokeStyle = "red";
+    ctx.stroke();
+  }
+
+  // Projectiles
+  projectiles.forEach(p=>{
+    ctx.fillStyle="cyan";
+    ctx.fillRect(p.x, p.y, 6, 6);
+  });
+
+  // Effects
+  effects.forEach((e,i)=>{
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, 30, 0, Math.PI*2);
+
+    if(e.type==="heal") ctx.fillStyle="green";
+    if(e.type==="speed") ctx.fillStyle="yellow";
+    if(e.type==="ultimate") ctx.fillStyle="purple";
+
+    ctx.globalAlpha = 0.3;
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    e.timer--;
+    if(e.timer<=0) effects.splice(i,1);
+  });
+
+  // HP bars
+  ctx.fillStyle="green";
+  ctx.fillRect(player.x-20, player.y-30, player.hp*0.4,5);
+  ctx.fillRect(enemy.x-20, enemy.y-30, enemy.hp*0.4,5);
+
+  // UI
+  ctx.fillStyle="white";
+  ctx.fillText("Q: Arrow | W: Speed | E: Heal | R: Ultimate", 20, 20);
+}
+
 // ===== GAME LOOP =====
-function gameLoop() {
+function gameLoop(){
   movePlayer();
   moveEnemy();
-  updateMinions();
+  autoAttack();
+  updateProjectiles();
   draw();
   requestAnimationFrame(gameLoop);
 }
