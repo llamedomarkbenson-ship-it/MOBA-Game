@@ -10,21 +10,32 @@ canvas {
   background: #1e1e1e;
 }
 
-/* Attack Button */
-#attackBtn {
+/* Skill buttons (HUD) */
+.skill-button {
   position: absolute;
-  bottom: 40px;
-  right: 30px;
-  width: 70px;
-  height: 70px;
-  border-radius: 50%;
-  border: none;
-  font-size: 30px;
-  background: rgba(255, 0, 0, 0.7);
+  bottom: 20px;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  font-size: 24px;
   color: white;
-  z-index: 10;
+  text-align: center;
+  line-height: 60px;
+  user-select: none;
 }
 
-#attackBtn:active {
-  transform: scale(0.9);
+#skillQ { left: 20px; background: cyan; }
+#skillW { left: 100px; background: yellow; }
+#skillE { left: 180px; background: purple; }
+#skillR { left: 260px; background: red; }
+
+/* Cooldown overlay */
+.cooldown {
+  position: absolute;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.5);
+  top: 0;
+  left: 0;
 }
