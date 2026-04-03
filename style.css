@@ -2,9 +2,29 @@ body {
   margin: 0;
   overflow: hidden;
   background: #111;
+  font-family: sans-serif;
 }
 
 canvas {
   display: block;
   background: #1e1e1e;
+}
+
+/* Attack Button */
+#attackBtn {
+  position: absolute;
+  bottom: 40px;
+  right: 30px;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  border: none;
+  font-size: 30px;
+  background: rgba(255, 0, 0, 0.7);
+  color: white;
+  z-index: 10;
+}
+
+#attackBtn:active {
+  transform: scale(0.9);
 }
