@@ -58,12 +58,10 @@ let gameOver = false;
 
 // ===== ARRAYS =====
 let projectiles = [];
-let effects = [];
 
 // ===== INPUT =====
 let keys = {};
 
-// UPDATED INPUT HANDLING (Q works for both cases)
 document.addEventListener("keydown", e => {
   const key = e.key;
 
@@ -88,7 +86,26 @@ document.addEventListener("keyup", e => {
   keys[key.toUpperCase()] = false;
 });
 
-// ===== CLICK =====
+// ===== AUTO TARGET =====
+function getNearestEnemy() {
+  let nearest = null;
+  let minDist = Infinity;
+
+  enemies.forEach(enemy => {
+    if (!enemy.alive) return;
+
+    const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+
+    if (dist < minDist) {
+      minDist = dist;
+      nearest = enemy;
+    }
+  });
+
+  return nearest;
+}
+
+// ===== CLICK MOVE =====
 canvas.addEventListener("mousedown", e => {
   const mx = e.clientX;
   const my = e.clientY;
@@ -128,16 +145,16 @@ let lastAttackTime = 0;
 
 function castQ() {
   const now = Date.now();
-
   if (now - lastAttackTime < 120) return;
   lastAttackTime = now;
 
-  if (!player.targetEnemy || !player.targetEnemy.alive) return;
+  const target = getNearestEnemy();
+  if (!target) return;
 
   projectiles.push({
     x: player.x,
     y: player.y,
-    target: player.targetEnemy,
+    target: target,
     speed: 6,
     dmg: 10
   });
@@ -186,6 +203,20 @@ function spawnWave() {
   }
 
   waveTextTimer = 120;
+}
+
+// ===== WAVE CHECK =====
+function checkWaveClear() {
+  const aliveEnemies = enemies.filter(e => e.alive);
+
+  if (aliveEnemies.length === 0 && enemies.length > 0) {
+    wave++;
+    enemies = [];
+
+    setTimeout(() => {
+      spawnWave();
+    }, 1000);
+  }
 }
 
 // ===== PROJECTILES =====
@@ -255,7 +286,7 @@ function draw() {
     ctx.fillStyle = "red";
     ctx.font = "50px Arial";
     ctx.textAlign = "center";
-    ctx.fillText(wave % 5 === 0 ? "BOSS WAVE" : "WAVE " + wave, canvas.width/2, canvas.height/2);
+    ctx.fillText(wave % 5 === 0 ? "BOSS WAVE" : "WAVE " + wave, canvas.width / 2, canvas.height / 2);
     ctx.textAlign = "left";
     waveTextTimer--;
   }
@@ -268,12 +299,13 @@ function gameLoop() {
   movePlayer();
   moveEnemies();
 
-  // UPDATED Q HOLD CHECK (works for q and Q)
   if (keys["q"] || keys["Q"]) {
     castQ();
   }
 
   updateProjectiles();
+  checkWaveClear();
+
   draw();
 
   requestAnimationFrame(gameLoop);
