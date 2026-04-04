@@ -48,16 +48,18 @@ const player = {
   targetEnemy: null
 };
 
-// ===== ENEMIES =====
+// ===== GAME STATE =====
 let enemies = [];
+let projectiles = [];
+let lootItems = [];
+
 let wave = 1;
 let score = 0;
 let gold = 0;
 let waveTextTimer = 0;
 let gameOver = false;
 
-// ===== ARRAYS =====
-let projectiles = [];
+let skillLevel = 1;
 
 // ===== INPUT =====
 let keys = {};
@@ -73,9 +75,7 @@ document.addEventListener("keydown", e => {
   if (key === "e" || key === "E") castE();
   if (key === "r" || key === "R") castR();
 
-  if (gameOver && e.code === "Space") {
-    restartGame();
-  }
+  if (gameOver && e.code === "Space") restartGame();
 });
 
 document.addEventListener("keyup", e => {
@@ -105,26 +105,7 @@ function getNearestEnemy() {
   return nearest;
 }
 
-// ===== CLICK MOVE =====
-canvas.addEventListener("mousedown", e => {
-  const mx = e.clientX;
-  const my = e.clientY;
-
-  player.targetEnemy = null;
-
-  enemies.forEach(enemy => {
-    const dist = Math.hypot(mx - enemy.x, my - enemy.y);
-    if (dist < 40 && enemy.alive) {
-      player.targetEnemy = enemy;
-    }
-  });
-
-  if (!player.targetEnemy) {
-    player.target = { x: mx, y: my };
-  }
-});
-
-// ===== MOVE PLAYER =====
+// ===== MOVEMENT =====
 function movePlayer() {
   if (!player.target) return;
 
@@ -140,12 +121,34 @@ function movePlayer() {
   }
 }
 
-// ===== BASIC ATTACK =====
+// ===== SKILLS =====
+function castW() {
+  player.speed = 5;
+  playSound(sounds.speed);
+  setTimeout(() => player.speed = player.baseSpeed, 2000);
+}
+
+function castE() {
+  player.hp = Math.min(player.maxHp, player.hp + 20);
+  playSound(sounds.heal);
+}
+
+function castR() {
+  enemies.forEach(e => e.stunned = true);
+  playSound(sounds.ultimate);
+  setTimeout(() => enemies.forEach(e => e.stunned = false), 3000);
+}
+
+// ===== Q ATTACK =====
 let lastAttackTime = 0;
 
 function castQ() {
   const now = Date.now();
-  if (now - lastAttackTime < 120) return;
+
+  const attackSpeed = 120 - (skillLevel * 10);
+  const damage = 10 + (skillLevel * 5);
+
+  if (now - lastAttackTime < attackSpeed) return;
   lastAttackTime = now;
 
   const target = getNearestEnemy();
@@ -156,34 +159,13 @@ function castQ() {
     y: player.y,
     target: target,
     speed: 6,
-    dmg: 10
+    dmg: damage
   });
 
   playSound(sounds.attack);
 }
 
-// ===== ENEMY AI =====
-function moveEnemies() {
-  enemies.forEach(enemy => {
-    if (!enemy.alive || enemy.stunned) return;
-
-    const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
-
-    if (dist > 50) {
-      enemy.x += (player.x - enemy.x) * 0.01;
-      enemy.y += (player.y - enemy.y) * 0.01;
-    } else {
-      player.hp -= 0.2;
-
-      if (player.hp <= 0) {
-        player.hp = 0;
-        gameOver = true;
-      }
-    }
-  });
-}
-
-// ===== WAVE SPAWN =====
+// ===== WAVE =====
 function spawnWave() {
   enemies = [];
 
@@ -219,6 +201,42 @@ function checkWaveClear() {
   }
 }
 
+// ===== LOOT =====
+function checkLootPickup() {
+  lootItems.forEach((loot, i) => {
+    const dist = Math.hypot(player.x - loot.x, player.y - loot.y);
+
+    if (dist < 30) {
+      if (loot.type === "skill") {
+        skillLevel++;
+      }
+
+      lootItems.splice(i, 1);
+    }
+  });
+}
+
+// ===== ENEMIES =====
+function moveEnemies() {
+  enemies.forEach(enemy => {
+    if (!enemy.alive || enemy.stunned) return;
+
+    const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+
+    if (dist > 50) {
+      enemy.x += (player.x - enemy.x) * 0.01;
+      enemy.y += (player.y - enemy.y) * 0.01;
+    } else {
+      player.hp -= 0.2;
+
+      if (player.hp <= 0) {
+        player.hp = 0;
+        gameOver = true;
+      }
+    }
+  });
+}
+
 // ===== PROJECTILES =====
 function updateProjectiles() {
   projectiles.forEach((p, i) => {
@@ -240,6 +258,14 @@ function updateProjectiles() {
           score += p.target.isBoss ? 100 : 10;
           gold += p.target.isBoss ? 50 : 5;
 
+          if (p.target.isBoss) {
+            lootItems.push({
+              x: p.target.x,
+              y: p.target.y,
+              type: "skill"
+            });
+          }
+
           playSound(sounds.death);
         }
       }
@@ -256,11 +282,7 @@ function draw() {
 
   enemies.forEach(enemy => {
     if (enemy.alive) {
-      if (enemy.isBoss) {
-        ctx.drawImage(enemyImg, enemy.x - 40, enemy.y - 40, 80, 80);
-      } else {
-        ctx.drawImage(enemyImg, enemy.x - 20, enemy.y - 20, 40, 40);
-      }
+      ctx.drawImage(enemyImg, enemy.x - 20, enemy.y - 20, 40, 40);
 
       ctx.fillStyle = "green";
       ctx.fillRect(enemy.x - 20, enemy.y - 30, enemy.hp * 0.4, 5);
@@ -272,6 +294,13 @@ function draw() {
     ctx.fillRect(p.x, p.y, 6, 6);
   });
 
+  lootItems.forEach(loot => {
+    ctx.fillStyle = "yellow";
+    ctx.beginPath();
+    ctx.arc(loot.x, loot.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+  });
+
   ctx.fillStyle = "green";
   ctx.fillRect(player.x - 20, player.y - 30, player.hp * 0.4, 5);
 
@@ -280,6 +309,7 @@ function draw() {
   ctx.fillText("Score: " + score, canvas.width - 20, 30);
   ctx.fillText("Wave: " + wave, canvas.width - 20, 60);
   ctx.fillText("Gold: " + gold, canvas.width - 20, 90);
+  ctx.fillText("Skill Lv: " + skillLevel, canvas.width - 20, 120);
   ctx.textAlign = "left";
 
   if (waveTextTimer > 0) {
@@ -305,6 +335,7 @@ function gameLoop() {
 
   updateProjectiles();
   checkWaveClear();
+  checkLootPickup();
 
   draw();
 
