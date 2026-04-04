@@ -25,12 +25,10 @@ const sounds = {
 sounds.bgm.loop = true;
 sounds.bgm.volume = 0.3;
 
-// allow music after first click
 document.addEventListener("click", () => {
   sounds.bgm.play().catch(() => {});
 }, { once: true });
 
-// helper for smooth overlapping sounds
 function playSound(sound) {
   const s = sound.cloneNode();
   s.volume = 0.4;
@@ -47,8 +45,7 @@ const player = {
   baseSpeed: 3,
   alive: true,
   target: null,
-  targetEnemy: null,
-  buffed: false
+  targetEnemy: null
 };
 
 // ===== ENEMIES =====
@@ -62,6 +59,10 @@ let gameOver = false;
 // ===== ARRAYS =====
 let projectiles = [];
 let effects = [];
+
+// ===== BASIC ATTACK CONTROL =====
+let keys = {};
+let lastAttackTime = 0;
 
 // ===== SPAWN WAVE =====
 function spawnWave() {
@@ -84,6 +85,32 @@ function spawnWave() {
 
   waveTextTimer = 120;
 }
+
+// ===== INPUT =====
+document.addEventListener("keydown", e => {
+  const key = e.key.toUpperCase();
+  keys[key] = true;
+
+  const now = Date.now();
+
+  if (key === "W") {
+    castW();
+  }
+  if (key === "E") {
+    castE();
+  }
+  if (key === "R") {
+    castR();
+  }
+
+  if (gameOver && e.code === "Space") {
+    restartGame();
+  }
+});
+
+document.addEventListener("keyup", e => {
+  keys[e.key.toUpperCase()] = false;
+});
 
 // ===== CLICK =====
 canvas.addEventListener("mousedown", e => {
@@ -120,24 +147,24 @@ function movePlayer() {
   }
 }
 
-// ===== AUTO ATTACK =====
-function autoAttack() {
+// ===== BASIC ATTACK (Q HOLD) =====
+function castQ() {
+  const now = Date.now();
+
+  if (now - lastAttackTime < 150) return;
+  lastAttackTime = now;
+
   if (!player.targetEnemy || !player.targetEnemy.alive) return;
 
-  const enemy = player.targetEnemy;
-  const dist = Math.hypot(player.x - enemy.x, player.y - enemy.y);
+  projectiles.push({
+    x: player.x,
+    y: player.y,
+    target: player.targetEnemy,
+    speed: 6,
+    dmg: 10
+  });
 
-  if (dist < 120) {
-    enemy.hp -= 0.2;
-  }
-
-  if (enemy.hp <= 0 && enemy.alive) {
-    enemy.alive = false;
-    score += enemy.isBoss ? 100 : 10;
-    gold += enemy.isBoss ? 50 : 5;
-
-    playSound(sounds.death);
-  }
+  playSound(sounds.attack);
 }
 
 // ===== ENEMY AI =====
@@ -173,74 +200,20 @@ function checkWaveClear() {
 }
 
 // ===== SKILLS =====
-let cooldowns = { Q: 0, W: 0, E: 0, R: 0 };
-
-document.addEventListener("keydown", e => {
-  const key = e.key.toUpperCase();
-  const now = Date.now();
-
-  if (key === "Q" && now > cooldowns.Q) {
-    castQ();
-    cooldowns.Q = now + 2000;
-  }
-  if (key === "W" && now > cooldowns.W) {
-    castW();
-    cooldowns.W = now + 5000;
-  }
-  if (key === "E" && now > cooldowns.E) {
-    castE();
-    cooldowns.E = now + 4000;
-  }
-  if (key === "R" && now > cooldowns.R) {
-    castR();
-    cooldowns.R = now + 10000;
-  }
-
-  if (gameOver && e.code === "Space") {
-    restartGame();
-  }
-});
-
-// ===== SKILL FUNCTIONS =====
-function castQ() {
-  if (!player.targetEnemy) return;
-
-  projectiles.push({
-    x: player.x,
-    y: player.y,
-    target: player.targetEnemy,
-    speed: 6,
-    dmg: 10
-  });
-
-  playSound(sounds.attack);
-}
-
 function castW() {
   player.speed = 5;
-
-  effects.push({ x: player.x, y: player.y, type: "speed", timer: 60 });
-
   playSound(sounds.speed);
-
   setTimeout(() => player.speed = player.baseSpeed, 2000);
 }
 
 function castE() {
   player.hp = Math.min(player.maxHp, player.hp + 20);
-
-  effects.push({ x: player.x, y: player.y, type: "heal", timer: 60 });
-
   playSound(sounds.heal);
 }
 
 function castR() {
   enemies.forEach(e => e.stunned = true);
-
-  effects.push({ x: player.x, y: player.y, type: "ultimate", timer: 120 });
-
   playSound(sounds.ultimate);
-
   setTimeout(() => enemies.forEach(e => e.stunned = false), 3000);
 }
 
@@ -262,8 +235,8 @@ function updateProjectiles() {
 
         if (p.target.hp <= 0) {
           p.target.alive = false;
-          score += 10;
-          gold += 5;
+          score += p.target.isBoss ? 100 : 10;
+          gold += p.target.isBoss ? 50 : 5;
 
           playSound(sounds.death);
         }
@@ -300,17 +273,13 @@ function draw() {
   ctx.fillStyle = "green";
   ctx.fillRect(player.x - 20, player.y - 30, player.hp * 0.4, 5);
 
-  // UI
   ctx.fillStyle = "white";
-  ctx.fillText("Q W E R", 20, 20);
-
   ctx.textAlign = "right";
   ctx.fillText("Score: " + score, canvas.width - 20, 30);
   ctx.fillText("Wave: " + wave, canvas.width - 20, 60);
   ctx.fillText("Gold: " + gold, canvas.width - 20, 90);
   ctx.textAlign = "left";
 
-  // wave text
   if (waveTextTimer > 0) {
     ctx.fillStyle = "red";
     ctx.font = "50px Arial";
@@ -321,31 +290,17 @@ function draw() {
   }
 }
 
-// ===== GAME OVER =====
-function drawGameOver() {
-  ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-  ctx.fillStyle = "red";
-  ctx.font = "50px Arial";
-  ctx.textAlign = "center";
-  ctx.fillText("GAME OVER", canvas.width/2, canvas.height/2);
-
-  ctx.font = "25px Arial";
-  ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2 + 40);
-  ctx.fillText("Press SPACE to restart", canvas.width/2, canvas.height/2 + 80);
-}
-
-// ===== LOOP =====
+// ===== GAME LOOP =====
 function gameLoop() {
-  if (gameOver) {
-    drawGameOver();
-    return;
-  }
+  if (gameOver) return;
 
   movePlayer();
   moveEnemies();
-  autoAttack();
+
+  if (keys["Q"]) {
+    castQ();
+  }
+
   updateProjectiles();
   checkWaveClear();
   draw();
@@ -353,18 +308,6 @@ function gameLoop() {
   requestAnimationFrame(gameLoop);
 }
 
-// ===== RESTART =====
-function restartGame() {
-  wave = 1;
-  score = 0;
-  gold = 0;
-  gameOver = false;
-  player.hp = player.maxHp;
-
-  spawnWave();
-  gameLoop();
-}
-
-// START
+// ===== START =====
 spawnWave();
 gameLoop();
