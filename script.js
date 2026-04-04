@@ -60,48 +60,20 @@ let gameOver = false;
 let projectiles = [];
 let effects = [];
 
-// ===== BASIC ATTACK CONTROL =====
-let keys = {};
-let lastAttackTime = 0;
-
-// ===== SPAWN WAVE =====
-function spawnWave() {
-  enemies = [];
-
-  const isBossWave = wave % 5 === 0;
-  const count = isBossWave ? 1 : wave + 2;
-
-  for (let i = 0; i < count; i++) {
-    enemies.push({
-      x: canvas.width - 100 - (i % 5) * 60,
-      y: 100 + Math.floor(i / 5) * 80,
-      hp: isBossWave ? 500 : 80 + wave * 20,
-      maxHp: isBossWave ? 500 : 80 + wave * 20,
-      alive: true,
-      stunned: false,
-      isBoss: isBossWave
-    });
-  }
-
-  waveTextTimer = 120;
-}
-
 // ===== INPUT =====
+let keys = {};
+
+// UPDATED INPUT HANDLING (Q works for both cases)
 document.addEventListener("keydown", e => {
-  const key = e.key.toUpperCase();
+  const key = e.key;
+
   keys[key] = true;
+  keys[key.toLowerCase()] = true;
+  keys[key.toUpperCase()] = true;
 
-  const now = Date.now();
-
-  if (key === "W") {
-    castW();
-  }
-  if (key === "E") {
-    castE();
-  }
-  if (key === "R") {
-    castR();
-  }
+  if (key === "w" || key === "W") castW();
+  if (key === "e" || key === "E") castE();
+  if (key === "r" || key === "R") castR();
 
   if (gameOver && e.code === "Space") {
     restartGame();
@@ -109,7 +81,11 @@ document.addEventListener("keydown", e => {
 });
 
 document.addEventListener("keyup", e => {
-  keys[e.key.toUpperCase()] = false;
+  const key = e.key;
+
+  keys[key] = false;
+  keys[key.toLowerCase()] = false;
+  keys[key.toUpperCase()] = false;
 });
 
 // ===== CLICK =====
@@ -147,11 +123,13 @@ function movePlayer() {
   }
 }
 
-// ===== BASIC ATTACK (Q HOLD) =====
+// ===== BASIC ATTACK =====
+let lastAttackTime = 0;
+
 function castQ() {
   const now = Date.now();
 
-  if (now - lastAttackTime < 150) return;
+  if (now - lastAttackTime < 120) return;
   lastAttackTime = now;
 
   if (!player.targetEnemy || !player.targetEnemy.alive) return;
@@ -188,33 +166,26 @@ function moveEnemies() {
   });
 }
 
-// ===== WAVE CLEAR =====
-function checkWaveClear() {
-  const alive = enemies.filter(e => e.alive);
+// ===== WAVE SPAWN =====
+function spawnWave() {
+  enemies = [];
 
-  if (alive.length === 0 && enemies.length > 0) {
-    wave++;
-    setTimeout(() => spawnWave(), 1000);
-    enemies = [];
+  const isBossWave = wave % 5 === 0;
+  const count = isBossWave ? 1 : wave + 2;
+
+  for (let i = 0; i < count; i++) {
+    enemies.push({
+      x: canvas.width - 100 - (i % 5) * 60,
+      y: 100 + Math.floor(i / 5) * 80,
+      hp: isBossWave ? 500 : 80 + wave * 20,
+      maxHp: isBossWave ? 500 : 80 + wave * 20,
+      alive: true,
+      stunned: false,
+      isBoss: isBossWave
+    });
   }
-}
 
-// ===== SKILLS =====
-function castW() {
-  player.speed = 5;
-  playSound(sounds.speed);
-  setTimeout(() => player.speed = player.baseSpeed, 2000);
-}
-
-function castE() {
-  player.hp = Math.min(player.maxHp, player.hp + 20);
-  playSound(sounds.heal);
-}
-
-function castR() {
-  enemies.forEach(e => e.stunned = true);
-  playSound(sounds.ultimate);
-  setTimeout(() => enemies.forEach(e => e.stunned = false), 3000);
+  waveTextTimer = 120;
 }
 
 // ===== PROJECTILES =====
@@ -297,12 +268,12 @@ function gameLoop() {
   movePlayer();
   moveEnemies();
 
-  if (keys["Q"]) {
+  // UPDATED Q HOLD CHECK (works for q and Q)
+  if (keys["q"] || keys["Q"]) {
     castQ();
   }
 
   updateProjectiles();
-  checkWaveClear();
   draw();
 
   requestAnimationFrame(gameLoop);
