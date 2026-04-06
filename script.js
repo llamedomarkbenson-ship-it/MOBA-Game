@@ -25,24 +25,14 @@ const sounds = {
 sounds.bgm.loop = true;
 sounds.bgm.volume = 0.3;
 
-document.addEventListener("click", () => {
-  sounds.bgm.play().catch(() => {});
-}, { once: true });
-
-function playSound(sound) {
-  const s = sound.cloneNode();
-  s.volume = 0.4;
-  s.play();
-}
-
 // ===== PLAYER =====
 const player = {
   x: 100,
   y: canvas.height / 2,
   hp: 100,
   maxHp: 100,
-  speed: 3,
-  baseSpeed: 3,
+  speed: 5, // slightly increased for better feel
+  baseSpeed: 5,
   alive: true,
   target: null,
   targetEnemy: null
@@ -75,8 +65,6 @@ document.addEventListener("keydown", e => {
   if (key === "w" || key === "W") castW();
   if (key === "e" || key === "E") castE();
   if (key === "r" || key === "R") castR();
-
-  if (gameOver && e.code === "Space") restartGame();
 });
 
 document.addEventListener("keyup", e => {
@@ -87,26 +75,32 @@ document.addEventListener("keyup", e => {
   keys[key.toUpperCase()] = false;
 });
 
-// ===== MOUSE HOLD + DRAG MOVEMENT =====
+// ===== MOUSE HOLD + DRAG (FIXED) =====
 let mouseDown = false;
+let bgmStarted = false;
 
-canvas.addEventListener("mousedown", (e) => {
+canvas.addEventListener("pointerdown", (e) => {
   if (gameOver) return;
+
   mouseDown = true;
   updateTarget(e);
+
+  // start music on first interaction
+  if (!bgmStarted) {
+    sounds.bgm.play().catch(() => {});
+    bgmStarted = true;
+  }
 });
 
-canvas.addEventListener("mouseup", () => {
+canvas.addEventListener("pointerup", () => {
   mouseDown = false;
-  player.target = null; // stop instantly when released
 });
 
-canvas.addEventListener("mouseleave", () => {
+canvas.addEventListener("pointerleave", () => {
   mouseDown = false;
-  player.target = null;
 });
 
-canvas.addEventListener("mousemove", (e) => {
+canvas.addEventListener("pointermove", (e) => {
   if (!mouseDown || gameOver) return;
   updateTarget(e);
 });
@@ -148,16 +142,16 @@ function movePlayer() {
   const dist = Math.hypot(dx, dy);
 
   if (dist < player.speed) {
-    player.target = null;
-  } else {
-    player.x += (dx / dist) * player.speed;
-    player.y += (dy / dist) * player.speed;
+    return;
   }
+
+  player.x += (dx / dist) * player.speed;
+  player.y += (dy / dist) * player.speed;
 }
 
 // ===== SKILLS =====
 function castW() {
-  player.speed = 5;
+  player.speed = 8;
   playSound(sounds.speed);
   setTimeout(() => player.speed = player.baseSpeed, 2000);
 }
@@ -171,6 +165,13 @@ function castR() {
   enemies.forEach(e => e.stunned = true);
   playSound(sounds.ultimate);
   setTimeout(() => enemies.forEach(e => e.stunned = false), 3000);
+}
+
+// ===== SOUND HELPER =====
+function playSound(sound) {
+  const s = sound.cloneNode();
+  s.volume = 0.4;
+  s.play();
 }
 
 // ===== Q ATTACK =====
