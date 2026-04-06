@@ -25,17 +25,26 @@ const sounds = {
 sounds.bgm.loop = true;
 sounds.bgm.volume = 0.3;
 
+// Start music on first key press
+document.addEventListener("keydown", () => {
+  sounds.bgm.play().catch(() => {});
+}, { once: true });
+
+function playSound(sound) {
+  const s = sound.cloneNode();
+  s.volume = 0.4;
+  s.play();
+}
+
 // ===== PLAYER =====
 const player = {
   x: 100,
   y: canvas.height / 2,
   hp: 100,
   maxHp: 100,
-  speed: 5, // slightly increased for better feel
+  speed: 5,
   baseSpeed: 5,
-  alive: true,
-  target: null,
-  targetEnemy: null
+  alive: true
 };
 
 // ===== GAME STATE =====
@@ -54,13 +63,10 @@ let skillLevel = 1;
 // ===== INPUT =====
 let keys = {};
 
-// KEYBOARD
 document.addEventListener("keydown", e => {
   const key = e.key;
 
   keys[key] = true;
-  keys[key.toLowerCase()] = true;
-  keys[key.toUpperCase()] = true;
 
   if (key === "w" || key === "W") castW();
   if (key === "e" || key === "E") castE();
@@ -68,50 +74,27 @@ document.addEventListener("keydown", e => {
 });
 
 document.addEventListener("keyup", e => {
-  const key = e.key;
-
-  keys[key] = false;
-  keys[key.toLowerCase()] = false;
-  keys[key.toUpperCase()] = false;
+  keys[e.key] = false;
 });
 
-// ===== MOUSE HOLD + DRAG (FIXED) =====
-let mouseDown = false;
-let bgmStarted = false;
+// ===== MOVEMENT (ARROW KEYS) =====
+function movePlayer() {
+  let dx = 0;
+  let dy = 0;
 
-canvas.addEventListener("pointerdown", (e) => {
-  if (gameOver) return;
+  if (keys["ArrowUp"]) dy -= 1;
+  if (keys["ArrowDown"]) dy += 1;
+  if (keys["ArrowLeft"]) dx -= 1;
+  if (keys["ArrowRight"]) dx += 1;
 
-  mouseDown = true;
-  updateTarget(e);
+  if (dx !== 0 || dy !== 0) {
+    const dist = Math.hypot(dx, dy);
+    dx /= dist;
+    dy /= dist;
 
-  // start music on first interaction
-  if (!bgmStarted) {
-    sounds.bgm.play().catch(() => {});
-    bgmStarted = true;
+    player.x += dx * player.speed;
+    player.y += dy * player.speed;
   }
-});
-
-canvas.addEventListener("pointerup", () => {
-  mouseDown = false;
-});
-
-canvas.addEventListener("pointerleave", () => {
-  mouseDown = false;
-});
-
-canvas.addEventListener("pointermove", (e) => {
-  if (!mouseDown || gameOver) return;
-  updateTarget(e);
-});
-
-function updateTarget(e) {
-  const rect = canvas.getBoundingClientRect();
-
-  player.target = {
-    x: e.clientX - rect.left,
-    y: e.clientY - rect.top
-  };
 }
 
 // ===== AUTO TARGET =====
@@ -133,22 +116,6 @@ function getNearestEnemy() {
   return nearest;
 }
 
-// ===== MOVEMENT =====
-function movePlayer() {
-  if (!player.target) return;
-
-  const dx = player.target.x - player.x;
-  const dy = player.target.y - player.y;
-  const dist = Math.hypot(dx, dy);
-
-  if (dist < player.speed) {
-    return;
-  }
-
-  player.x += (dx / dist) * player.speed;
-  player.y += (dy / dist) * player.speed;
-}
-
 // ===== SKILLS =====
 function castW() {
   player.speed = 8;
@@ -165,13 +132,6 @@ function castR() {
   enemies.forEach(e => e.stunned = true);
   playSound(sounds.ultimate);
   setTimeout(() => enemies.forEach(e => e.stunned = false), 3000);
-}
-
-// ===== SOUND HELPER =====
-function playSound(sound) {
-  const s = sound.cloneNode();
-  s.volume = 0.4;
-  s.play();
 }
 
 // ===== Q ATTACK =====
@@ -230,9 +190,7 @@ function checkWaveClear() {
     wave++;
     enemies = [];
 
-    setTimeout(() => {
-      spawnWave();
-    }, 1000);
+    setTimeout(() => spawnWave(), 1000);
   }
 }
 
@@ -242,10 +200,7 @@ function checkLootPickup() {
     const dist = Math.hypot(player.x - loot.x, player.y - loot.y);
 
     if (dist < 30) {
-      if (loot.type === "skill") {
-        skillLevel++;
-      }
-
+      if (loot.type === "skill") skillLevel++;
       lootItems.splice(i, 1);
     }
   });
@@ -285,7 +240,6 @@ function updateProjectiles() {
     if (dist < 10) {
       if (p.target.alive) {
         p.target.hp -= p.dmg;
-
         playSound(sounds.hit);
 
         if (p.target.hp <= 0) {
@@ -294,11 +248,7 @@ function updateProjectiles() {
           gold += p.target.isBoss ? 50 : 5;
 
           if (p.target.isBoss) {
-            lootItems.push({
-              x: p.target.x,
-              y: p.target.y,
-              type: "skill"
-            });
+            lootItems.push({ x: p.target.x, y: p.target.y, type: "skill" });
           }
 
           playSound(sounds.death);
@@ -318,7 +268,6 @@ function draw() {
   enemies.forEach(enemy => {
     if (enemy.alive) {
       ctx.drawImage(enemyImg, enemy.x - 20, enemy.y - 20, 40, 40);
-
       ctx.fillStyle = "green";
       ctx.fillRect(enemy.x - 20, enemy.y - 30, enemy.hp * 0.4, 5);
     }
