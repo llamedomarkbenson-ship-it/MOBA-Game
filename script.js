@@ -64,6 +64,7 @@ let skillLevel = 1;
 // ===== INPUT =====
 let keys = {};
 
+// KEYBOARD
 document.addEventListener("keydown", e => {
   const key = e.key;
 
@@ -85,6 +86,39 @@ document.addEventListener("keyup", e => {
   keys[key.toLowerCase()] = false;
   keys[key.toUpperCase()] = false;
 });
+
+// ===== MOUSE HOLD + DRAG MOVEMENT =====
+let mouseDown = false;
+
+canvas.addEventListener("mousedown", (e) => {
+  if (gameOver) return;
+  mouseDown = true;
+  updateTarget(e);
+});
+
+canvas.addEventListener("mouseup", () => {
+  mouseDown = false;
+  player.target = null; // stop instantly when released
+});
+
+canvas.addEventListener("mouseleave", () => {
+  mouseDown = false;
+  player.target = null;
+});
+
+canvas.addEventListener("mousemove", (e) => {
+  if (!mouseDown || gameOver) return;
+  updateTarget(e);
+});
+
+function updateTarget(e) {
+  const rect = canvas.getBoundingClientRect();
+
+  player.target = {
+    x: e.clientX - rect.left,
+    y: e.clientY - rect.top
+  };
+}
 
 // ===== AUTO TARGET =====
 function getNearestEnemy() {
